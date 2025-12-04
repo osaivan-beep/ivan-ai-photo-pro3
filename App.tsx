@@ -18,6 +18,7 @@ import { AdminUserList } from './components/AdminUserList';
 import { embeddedConfig } from './lib/firebaseConfig';
 import { WatermarkModal } from './components/WatermarkModal';
 import { VideoPromptModal } from './components/VideoPromptModal';
+import { ApiKeyWelcomeModal } from './components/ApiKeyWelcomeModal';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -331,6 +332,9 @@ const App: React.FC = () => {
   const [firebaseInitialized, setFirebaseInitialized] = useState(false);
   const [showWatermarkModal, setShowWatermarkModal] = useState(false);
   const [showVideoPromptModal, setShowVideoPromptModal] = useState(false);
+  
+  // New State for API Key Modal
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
   // ... (rest of state)
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
@@ -362,23 +366,20 @@ const App: React.FC = () => {
   const panStartRef = useRef({ startX: 0, startY: 0, startPan: { x: 0, y: 0 } });
   const pinchStartRef = useRef<{ dist: number; mid: { x: number; y: number; }; zoom: number; pan: { x: number; y: number; }; } | null>(null);
 
-  // --- AUTO NUKE CACHE CHECK ---
+  // --- API Key Check ---
   useEffect(() => {
       const keyId = getKeyId();
-      // If we detect the placeholder key "GEMI..._KEY" (from v3.1/v3.2 build), force nuke everything
-      if (keyId.includes("GEMI")) {
-          console.warn("Detected stale cache with placeholder key. Nuking Service Worker...");
-          if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                  for(let registration of registrations) {
-                      registration.unregister().then(() => {
-                          window.location.reload();
-                      });
-                  }
-              });
-          }
+      // If the key is missing or is the placeholder, show the manual entry modal
+      if (keyId.includes("Missing") || keyId.includes("GEMI")) {
+          setShowApiKeyModal(true);
       }
   }, []);
+
+  const handleManualApiKeySave = (key: string) => {
+      setStoredKey(key);
+      setShowApiKeyModal(false);
+      window.location.reload(); // Reload to ensure services pick up the new key
+  };
 
   const t: TFunction = useCallback((key) => {
     return translations[lang][key] || translations.en[key];
@@ -462,7 +463,7 @@ const App: React.FC = () => {
   };
 
   const handleHardReset = () => {
-      if (confirm('是否強制清除快取並重整？(Fix stuck version)')) {
+      if (confirm('是否強制清除快取並重整？\n(這也會清除手動輸入的 API Key)')) {
           if ('serviceWorker' in navigator) {
               navigator.serviceWorker.getRegistrations().then(function(registrations) {
                   for(let registration of registrations) {
@@ -470,6 +471,9 @@ const App: React.FC = () => {
                   }
               });
           }
+          // Also clear manual API key
+          removeStoredKey();
+          
           localStorage.clear();
           window.location.reload();
       }
@@ -720,6 +724,11 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 font-sans relative">
+      {/* --- API KEY RESCUE MODAL --- */}
+      {showApiKeyModal && (
+          <ApiKeyWelcomeModal onSave={handleManualApiKeySave} t={t} />
+      )}
+
       {/* ... (Modals) ... */}
       {showWatermarkModal && (
         <WatermarkModal 
@@ -778,7 +787,7 @@ const App: React.FC = () => {
                         className="text-[10px] text-red-400 font-mono mt-1 hover:text-red-300 hover:underline cursor-pointer border border-red-900/50 bg-red-900/10 px-1 rounded" 
                         title="Click to Force Reset App (Fix Stuck Cache)"
                     >
-                        v3.9 | Key: {getKeyId()} (Click to Reset)
+                        v4.8 | Key: {getKeyId()} (Click to Reset)
                     </button>
                 </div>
                 <button onClick={() => logout()} className="text-xs bg-red-900/50 hover:bg-red-900 text-red-200 px-2 py-1 rounded">
