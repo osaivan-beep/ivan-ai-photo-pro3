@@ -1,12 +1,19 @@
 
+
+
 import { GoogleGenAI, Modality, type GenerateContentResponse } from '@google/genai';
 import type { GeminiImagePart, ImageResolution } from '../types';
 
 // Dynamic retrieval function
 export const getActiveKey = (): string => {
     // Business Mode: Use the system configured (Paid) API Key exclusively.
-    // This ensures stability for all users.
     const systemKey = process.env.API_KEY;
+    
+    // Strict Format Check: Must start with AIza
+    if (systemKey && !systemKey.startsWith("AIza")) {
+        console.error("Invalid API Key format detected (must start with AIza). Please update secrets.");
+        return "";
+    }
     
     if (!systemKey) {
         console.error("System API Key is missing! Check your .env file or GitHub Secrets.");
@@ -20,7 +27,7 @@ export const getActiveKey = (): string => {
 export const getKeyId = (): string => {
     const key = getActiveKey();
     if (!key) return "Missing (未設定)";
-    if (key.length < 10) return `Invalid (${key})`; // Key too short
+    if (key.length < 10) return `Invalid`; 
     
     // Show first 4 and last 4 chars to strictly identify the key
     return `${key.substring(0, 4)}...${key.slice(-4)}`;
@@ -40,8 +47,13 @@ const handleGeminiError = (error: unknown, context: string): never => {
       throw new Error('系統忙碌中 (目前使用人數眾多)。\n請等待 30-60 秒後點擊「重試」。');
     }
     
-    // 偵測權限錯誤 (403) - 通常是 Domain 限制導致，或是 Key 無效，或是 Billing 未啟用
-    if (msg.includes('PERMISSION_DENIED') || msg.includes('403') || msg.includes('API_KEY_INVALID')) {
+    // 偵測 Key 無效
+    if (msg.includes('API_KEY_INVALID')) {
+        throw new Error(`API 金鑰無效 (API_KEY_INVALID)。\n使用中的 Key ID: ${getKeyId()}\n請檢查 GitHub Secrets 是否正確設定為您的 Google API Key (AIza...)。`);
+    }
+
+    // 偵測權限錯誤 (403)
+    if (msg.includes('PERMISSION_DENIED') || msg.includes('403')) {
         throw new Error(`API 權限錯誤 (403)。\n使用中的 Key ID: ${getKeyId()}\n\n請檢查 Google Cloud Console：\n1. 網域限制：是否已加入 https://osaivan-beep.github.io/*\n2. 帳單狀態：Gemini 3 Pro 模型「必須」連結信用卡/帳單帳戶。\n3. API 服務：確認已啟用 "Generative Language API"。`);
     }
     
@@ -58,7 +70,7 @@ export const generateImageWithGemini = async (
 ): Promise<{ imageUrl: string }> => {
   
   const apiKey = getActiveKey();
-  if (!apiKey) throw new Error("System API Key Missing. Please check configuration.");
+  if (!apiKey) throw new Error("API Key 設定錯誤或遺失。請確認 GitHub Secrets 中的 API_KEY 是否正確 (需以 AIza 開頭)。");
 
   const ai = new GoogleGenAI({ apiKey });
   
@@ -79,8 +91,6 @@ export const generateImageWithGemini = async (
     // Using Gemini 3 Pro Image Preview
     const config: any = {
         imageConfig: {
-            // Map '1K', '2K', '4K' directly. Default to '1K' if unspecified.
-            // Gemini 3 supports '1K' and '2K' (and '4K' in some contexts, strictly follow docs)
             imageSize: resolution || '1K' 
         }
     };
@@ -109,7 +119,7 @@ export const editImageWithGemini = async (
   prompt: string
 ): Promise<{ response: GenerateContentResponse }> => {
   const apiKey = getActiveKey();
-  if (!apiKey) throw new Error("System API Key Missing.");
+  if (!apiKey) throw new Error("API Key 設定錯誤或遺失。請確認 GitHub Secrets。");
 
   const ai = new GoogleGenAI({ apiKey });
 
@@ -126,7 +136,7 @@ export const editImageWithGemini = async (
       contents: { parts: allParts },
       config: {
           imageConfig: {
-              imageSize: '1K' // Editing often safer at 1K for speed, can match resolution param if needed later
+              imageSize: '1K' 
           }
       }
     });
