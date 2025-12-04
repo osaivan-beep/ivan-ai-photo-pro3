@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { GenerateContentResponse } from '@google/genai';
 import { CanvasEditor, type CanvasEditorRef } from './components/CanvasEditor';
@@ -458,8 +459,22 @@ const App: React.FC = () => {
       if (msg.includes('permission-denied')) {
           setShowPermissionHelp(true);
       } else {
-          // 一般錯誤 (含 Rate Limit) 直接顯示紅色警告
           setError(msg);
+      }
+  };
+
+  // Hard Reset Function
+  const handleHardReset = () => {
+      if (confirm('是否強制清除快取並重整？(Fix stuck version)')) {
+          if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                  for(let registration of registrations) {
+                      registration.unregister();
+                  }
+              });
+          }
+          localStorage.clear(); // Optional: clears user templates but ensures clean slate
+          window.location.reload();
       }
   };
 
@@ -534,7 +549,6 @@ const App: React.FC = () => {
       let resultImageUrl = '';
 
       if (!selectedImage) {
-        // Pass resolution (ImageResolution) to the generation service
         const result = await generateImageWithGemini(prompt, effectiveAspectRatio, resolution);
         resultImageUrl = result.imageUrl;
       } else {
@@ -759,10 +773,14 @@ const App: React.FC = () => {
                     <span className="text-sm font-bold text-yellow-400 flex items-center gap-1">
                         <SparklesIcon className="w-4 h-4" /> {userProfile?.credits || 0} {t('creditsLabel')}
                     </span>
-                    {/* Display Key ID for verification */}
-                    <span className="text-[10px] text-gray-500 font-mono mt-1" title="Active Key ID">
-                        v3.4 | Key: {getKeyId()}
-                    </span>
+                    {/* Key Display & Reset Button */}
+                    <button 
+                        onClick={handleHardReset}
+                        className="text-[10px] text-red-400 font-mono mt-1 hover:text-red-300 hover:underline cursor-pointer border border-red-900/50 bg-red-900/10 px-1 rounded" 
+                        title="Click to Force Reset App (Fix Stuck Cache)"
+                    >
+                        v3.5 | Key: {getKeyId()} (Click to Reset)
+                    </button>
                 </div>
                 <button onClick={() => logout()} className="text-xs bg-red-900/50 hover:bg-red-900 text-red-200 px-2 py-1 rounded">
                     {t('logoutButton')}
@@ -774,6 +792,7 @@ const App: React.FC = () => {
             </div>
         </header>
 
+        {/* ... (rest of the component) ... */}
         {userProfile?.isAdmin && (
             <div className="mb-6 bg-blue-900/20 border border-blue-500/30 p-4 rounded-lg">
                 <div className="flex justify-between items-center cursor-pointer" onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}>

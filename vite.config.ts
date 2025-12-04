@@ -6,24 +6,27 @@ export default defineConfig(({ mode }) => {
   // 載入本地 .env 檔案
   const env = loadEnv(mode, (process as any).cwd(), '');
 
-  // 關鍵修正：
-  // 1. process.env.API_KEY: 這是 GitHub Actions 傳入的 Secret (Gemini API Key)。
-  // 2. env.API_KEY: 這是本地 .env 檔案的變數。
-  // 3. "": 如果都沒抓到，就留空。
-  const apiKey = process.env.API_KEY || env.API_KEY || "";
+  // 優先順序：GitHub Secrets (process.env) > 本地 .env (env.API_KEY)
+  let apiKey = process.env.API_KEY || env.API_KEY || "";
 
-  // 在 Build 階段檢查是否有抓到 Key (這會顯示在 GitHub Actions 的 Log 裡)
+  // 安全檢查：過濾掉常見的佔位符或無效金鑰
+  // 如果讀取到 "GEMINI_API_KEY" (範例值)，則視為無效，強制設為空字串
+  if (apiKey === "GEMINI_API_KEY" || apiKey.includes("YOUR_API_KEY") || !apiKey.startsWith("AIza")) {
+    console.warn("⚠️ Build: Detected invalid or placeholder API Key. Resetting to empty.");
+    apiKey = "";
+  }
+
+  // 在 Build 階段檢查
   if (apiKey) {
-    console.log("✅ Build: API Key detected successfully.");
+    console.log("✅ Build: Valid API Key detected (Starts with AIza).");
   } else {
-    console.warn("⚠️ Build: No API Key detected! The app will not work properly.");
+    console.warn("⚠️ Build: No valid API Key detected! App will show 'Missing Key' error.");
   }
 
   return {
     plugins: [react()],
-    base: '/ivan-ai-photo-pro3/', // 確保這裡對應您的新 GitHub Repository 名稱
+    base: '/ivan-ai-photo-pro3/', 
     define: {
-      // 將抓到的 Key 注入到網頁程式中
       'process.env.API_KEY': JSON.stringify(apiKey) 
     },
     build: {
