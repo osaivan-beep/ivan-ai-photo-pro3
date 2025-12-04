@@ -16,11 +16,14 @@ export const getActiveKey = (): string => {
     return systemKey;
 };
 
-// Helper to verify which key is active (returns last 4 chars)
+// Helper to verify which key is active (returns start and end chars for validation)
 export const getKeyId = (): string => {
     const key = getActiveKey();
-    if (!key) return "None";
-    return "..." + key.slice(-4);
+    if (!key) return "Missing (未設定)";
+    if (key.length < 10) return `Invalid (${key})`; // Key too short
+    
+    // Show first 4 and last 4 chars to strictly identify the key
+    return `${key.substring(0, 4)}...${key.slice(-4)}`;
 };
 
 // Deprecated functions kept as no-ops to prevent build errors in other files referencing them
