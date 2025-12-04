@@ -63,6 +63,7 @@ const ZoomControls = ({ zoom, onZoomChange, onFit, t, isPanMode, onTogglePan }: 
 );
 
 const LandingScreen: React.FC<{ onConfigSave: (config: FirebaseConfig) => void; onAuthSuccess: () => void; t: TFunction }> = ({ onConfigSave, onAuthSuccess, t }) => {
+    // ... (LandingScreen implementation remains same)
     const hasEmbedded = !!embeddedConfig;
     const [activeTab, setActiveTab] = useState<'user' | 'admin'>('user');
     const [configStr, setConfigStr] = useState('');
@@ -185,22 +186,6 @@ const LandingScreen: React.FC<{ onConfigSave: (config: FirebaseConfig) => void; 
         } catch (e) {
             console.error(e);
             alert(`${t('setupErrorInvalidFormat')}\n\nTechnical details: ${e instanceof Error ? e.message : 'Unknown error'}`);
-        }
-    };
-
-    const handleShare = () => {
-        try {
-            const stored = localStorage.getItem('firebaseConfig');
-            if (stored) {
-                 const encoded = btoa(stored);
-                 const url = `${window.location.origin}${window.location.pathname}?setup=${encoded}`;
-                 navigator.clipboard.writeText(url);
-                 alert(t('shareLinkCopied'));
-            } else {
-                alert('Configuration not found. Please initialize first.');
-            }
-        } catch (e) {
-            alert('Failed to generate link.');
         }
     };
 
@@ -347,6 +332,7 @@ const App: React.FC = () => {
   const [showWatermarkModal, setShowWatermarkModal] = useState(false);
   const [showVideoPromptModal, setShowVideoPromptModal] = useState(false);
 
+  // ... (rest of state)
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [selectedImageId, setSelectedImageId] = useState<string | null>(null);
   const [brushSize, setBrushSize] = useState<number>(10);
@@ -376,10 +362,29 @@ const App: React.FC = () => {
   const panStartRef = useRef({ startX: 0, startY: 0, startPan: { x: 0, y: 0 } });
   const pinchStartRef = useRef<{ dist: number; mid: { x: number; y: number; }; zoom: number; pan: { x: number; y: number; }; } | null>(null);
 
+  // --- AUTO NUKE CACHE CHECK ---
+  useEffect(() => {
+      const keyId = getKeyId();
+      // If we detect the placeholder key "GEMI..._KEY" (from v3.1/v3.2 build), force nuke everything
+      if (keyId.includes("GEMI")) {
+          console.warn("Detected stale cache with placeholder key. Nuking Service Worker...");
+          if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                  for(let registration of registrations) {
+                      registration.unregister().then(() => {
+                          window.location.reload();
+                      });
+                  }
+              });
+          }
+      }
+  }, []);
+
   const t: TFunction = useCallback((key) => {
     return translations[lang][key] || translations.en[key];
   }, [lang]);
 
+  // ... (rest of implementation)
   useEffect(() => {
     setAllQuickPrompts(translations[lang].defaultQuickPrompts);
   }, [lang]);
@@ -394,11 +399,8 @@ const App: React.FC = () => {
         const container = imageContainerRef.current;
         const containerWidth = container.clientWidth;
         const containerHeight = container.clientHeight;
-        
-        // padding
         const pW = containerWidth * 0.9;
         const pH = containerHeight * 0.9;
-        
         const scale = Math.min(pW / img.naturalWidth, pH / img.naturalHeight);
         setZoom(scale);
         setPan({ x: 0, y: 0 });
@@ -449,11 +451,9 @@ const App: React.FC = () => {
   const handleConfigSave = (config: FirebaseConfig) => { try { initializeFirebase(config); setFirebaseInitialized(true); } catch (e: any) { alert(e.message); } };
   const refreshUserProfile = async () => { if (userProfile) { try { const updated = await getUserProfile(userProfile.uid); setUserProfile(updated); } catch(e) {} } };
 
-  // Error Handling Wrapper
   const handleApiError = (e: any) => {
       console.error(e);
       const msg = e.message || '';
-      
       if (msg.includes('permission-denied')) {
           setShowPermissionHelp(true);
       } else {
@@ -461,7 +461,6 @@ const App: React.FC = () => {
       }
   };
 
-  // Hard Reset Function
   const handleHardReset = () => {
       if (confirm('是否強制清除快取並重整？(Fix stuck version)')) {
           if ('serviceWorker' in navigator) {
@@ -471,11 +470,12 @@ const App: React.FC = () => {
                   }
               });
           }
-          localStorage.clear(); // Optional: clears user templates but ensures clean slate
+          localStorage.clear();
           window.location.reload();
       }
   };
 
+  // ... (rest of functions: handleRefinePrompt, handleGenerate, etc. - no changes needed)
   const handleRefinePrompt = async () => {
     const cost = 3;
     if (!prompt) return;
@@ -720,6 +720,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 font-sans relative">
+      {/* ... (Modals) ... */}
       {showWatermarkModal && (
         <WatermarkModal 
             onClose={() => setShowWatermarkModal(false)} 
@@ -777,7 +778,7 @@ const App: React.FC = () => {
                         className="text-[10px] text-red-400 font-mono mt-1 hover:text-red-300 hover:underline cursor-pointer border border-red-900/50 bg-red-900/10 px-1 rounded" 
                         title="Click to Force Reset App (Fix Stuck Cache)"
                     >
-                        v3.7 | Key: {getKeyId()} (Click to Reset)
+                        v3.9 | Key: {getKeyId()} (Click to Reset)
                     </button>
                 </div>
                 <button onClick={() => logout()} className="text-xs bg-red-900/50 hover:bg-red-900 text-red-200 px-2 py-1 rounded">
@@ -791,6 +792,7 @@ const App: React.FC = () => {
         </header>
 
         {/* ... (rest of the component) ... */}
+        {/* Same component structure as before */}
         {userProfile?.isAdmin && (
             <div className="mb-6 bg-blue-900/20 border border-blue-500/30 p-4 rounded-lg">
                 <div className="flex justify-between items-center cursor-pointer" onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}>
@@ -1037,7 +1039,6 @@ const App: React.FC = () => {
                       <button onClick={() => setError(null)} className="text-red-400 hover:text-white"><CloseIcon className="w-5 h-5"/></button>
                   </div>
                    
-                   {/* Rate Limit Retry Button - Check for rate limit keywords */}
                    {(error.includes('Rate Limit') || error.includes('429') || error.includes('系統忙碌')) && (
                        <button onClick={handleGenerate} className="mt-2 flex items-center gap-1 text-xs bg-red-700 hover:bg-red-600 px-3 py-1.5 rounded text-white font-bold transition-colors shadow-sm">
                            <RefreshIcon className="w-3 h-3" /> Retry / 重試

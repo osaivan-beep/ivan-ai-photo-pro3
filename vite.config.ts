@@ -18,16 +18,13 @@ export default defineConfig(({ mode }) => {
   if (apiKey === "GEMINI_API_KEY" || apiKey.includes("YOUR_API_KEY")) {
     console.warn("⚠️ Build: Detected placeholder API Key. Resetting to empty.");
     apiKey = "";
-  } else if (apiKey && !apiKey.startsWith("AIza")) {
-    // 如果有值但不是 AIza 開頭，可能是格式還是有錯，印出警告但不強制清空(讓 runtime 再擋一次以防萬一)
-    console.warn("⚠️ Build: API Key does not start with 'AIza'. This might cause runtime errors.");
   }
 
-  // 在 Build 階段檢查
-  if (apiKey && apiKey.startsWith("AIza")) {
-    console.log("✅ Build: Valid API Key detected.");
+  // Log status (do not log actual key in CI)
+  if (apiKey) {
+    console.log("✅ Build: API Key injected.");
   } else {
-    console.warn("⚠️ Build: No valid API Key detected! App will show 'Missing Key' error.");
+    console.warn("⚠️ Build: No API Key injected.");
   }
 
   return {
