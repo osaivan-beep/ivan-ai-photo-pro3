@@ -1,18 +1,20 @@
 
-
-
 import { GoogleGenAI, Modality, type GenerateContentResponse } from '@google/genai';
 import type { GeminiImagePart, ImageResolution } from '../types';
 
 // Dynamic retrieval function
 export const getActiveKey = (): string => {
     // Business Mode: Use the system configured (Paid) API Key exclusively.
-    const systemKey = process.env.API_KEY;
+    let systemKey = process.env.API_KEY || "";
+    
+    // Runtime cleanup: Remove any accidental whitespace or quotes
+    systemKey = systemKey.trim().replace(/^['"]|['"]$/g, '');
     
     // Strict Format Check: Must start with AIza
     if (systemKey && !systemKey.startsWith("AIza")) {
         console.error("Invalid API Key format detected (must start with AIza). Please update secrets.");
-        return "";
+        // We return it anyway so the user can see the "Invalid" ID in the UI for debugging
+        return ""; 
     }
     
     if (!systemKey) {
@@ -25,12 +27,17 @@ export const getActiveKey = (): string => {
 
 // Helper to verify which key is active (returns start and end chars for validation)
 export const getKeyId = (): string => {
-    const key = getActiveKey();
+    let key = process.env.API_KEY || "";
+    key = key.trim().replace(/^['"]|['"]$/g, '');
+
     if (!key) return "Missing (未設定)";
-    if (key.length < 10) return `Invalid`; 
+    if (!key.startsWith("AIza")) return `Invalid (Format Error)`; 
     
     // Show first 4 and last 4 chars to strictly identify the key
-    return `${key.substring(0, 4)}...${key.slice(-4)}`;
+    if (key.length > 8) {
+        return `${key.substring(0, 4)}...${key.slice(-4)}`;
+    }
+    return "Invalid (Too Short)";
 };
 
 // Deprecated functions kept as no-ops to prevent build errors in other files referencing them
