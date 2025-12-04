@@ -1,0 +1,22 @@
+
+{
+  "short_name": "Ivan Pro 3",
+  "name": "Ivan AI Photo Pro 3 - Gemini 3",
+  "description": "An advanced image editing tool powered by Gemini 3 Pro Image. Upload multiple images, draw on them with a resizable brush, and use text prompts to generate new variations.",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "./icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "./",
+  "display": "standalone",
+  "theme_color": "#8b5cf6",
+  "background_color": "#111827"
+}
