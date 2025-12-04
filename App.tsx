@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { GenerateContentResponse } from '@google/genai';
 import { CanvasEditor, type CanvasEditorRef } from './components/CanvasEditor';
@@ -760,7 +761,7 @@ const App: React.FC = () => {
                     </span>
                     {/* Display Key ID for verification */}
                     <span className="text-[10px] text-gray-500 font-mono mt-1" title="Active Key ID">
-                        v3.3 | Key: {getKeyId()}
+                        v3.4 | Key: {getKeyId()}
                     </span>
                 </div>
                 <button onClick={() => logout()} className="text-xs bg-red-900/50 hover:bg-red-900 text-red-200 px-2 py-1 rounded">

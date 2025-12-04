@@ -1,5 +1,5 @@
 
-const CACHE_NAME = 'ivan-ai-photo-pro-v3.3-release-001'; // Force update to v3.3
+const CACHE_NAME = 'ivan-ai-photo-pro-v3.4-release-001'; // Force update to v3.4 for new API Key
 const APP_SHELL_URLS = [
   './',
   './index.html',
