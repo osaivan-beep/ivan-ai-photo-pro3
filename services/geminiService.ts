@@ -10,13 +10,8 @@ export const getActiveKey = (): string => {
     // Runtime cleanup: Remove any accidental whitespace or quotes
     systemKey = systemKey.trim().replace(/^['"]|['"]$/g, '');
     
-    // Strict Format Check: Must start with AIza
-    if (systemKey && !systemKey.startsWith("AIza")) {
-        console.error("Invalid API Key format detected (must start with AIza). Please update secrets.");
-        // We return it anyway so the user can see the "Invalid" ID in the UI for debugging
-        return ""; 
-    }
-    
+    // Allow any key format. If it's wrong, Google's server will reject it with a specific 400 error.
+    // This fixes the issue where invisible characters caused "Missing" error.
     if (!systemKey) {
         console.error("System API Key is missing! Check your .env file or GitHub Secrets.");
         return "";
@@ -31,13 +26,12 @@ export const getKeyId = (): string => {
     key = key.trim().replace(/^['"]|['"]$/g, '');
 
     if (!key) return "Missing (未設定)";
-    if (!key.startsWith("AIza")) return `Invalid (Format Error)`; 
     
     // Show first 4 and last 4 chars to strictly identify the key
     if (key.length > 8) {
         return `${key.substring(0, 4)}...${key.slice(-4)}`;
     }
-    return "Invalid (Too Short)";
+    return "Unknown Key";
 };
 
 // Deprecated functions kept as no-ops to prevent build errors in other files referencing them
@@ -55,8 +49,8 @@ const handleGeminiError = (error: unknown, context: string): never => {
     }
     
     // 偵測 Key 無效
-    if (msg.includes('API_KEY_INVALID')) {
-        throw new Error(`API 金鑰無效 (API_KEY_INVALID)。\n使用中的 Key ID: ${getKeyId()}\n請檢查 GitHub Secrets 是否正確設定為您的 Google API Key (AIza...)。`);
+    if (msg.includes('API_KEY_INVALID') || msg.includes('400')) {
+        throw new Error(`API 金鑰無效 (API_KEY_INVALID)。\n使用中的 Key ID: ${getKeyId()}\n請檢查 GitHub Secrets 是否正確設定為您的 Google API Key。`);
     }
 
     // 偵測權限錯誤 (403)
@@ -77,7 +71,7 @@ export const generateImageWithGemini = async (
 ): Promise<{ imageUrl: string }> => {
   
   const apiKey = getActiveKey();
-  if (!apiKey) throw new Error("API Key 設定錯誤或遺失。請確認 GitHub Secrets 中的 API_KEY 是否正確 (需以 AIza 開頭)。");
+  if (!apiKey) throw new Error("API Key 設定錯誤或遺失。請確認 GitHub Secrets 中的 API_KEY 是否正確。");
 
   const ai = new GoogleGenAI({ apiKey });
   
