@@ -42,7 +42,7 @@ const handleGeminiError = (error: unknown, context: string): never => {
     
     // 偵測權限錯誤 (403) - 通常是 Domain 限制導致，或是 Key 無效，或是 Billing 未啟用
     if (msg.includes('PERMISSION_DENIED') || msg.includes('403') || msg.includes('API_KEY_INVALID')) {
-        throw new Error(`API 權限錯誤 (403)。\nKey ID: ${getKeyId()}\n請檢查：\n1. Google Cloud Console 的「網域限制」是否包含 https://osaivan-beep.github.io/*\n2. 專案是否已啟用 Billing (Gemini 3 Pro 需綁定帳單)。`);
+        throw new Error(`API 權限錯誤 (403)。\n使用中的 Key ID: ${getKeyId()}\n\n請檢查 Google Cloud Console：\n1. 網域限制：是否已加入 https://osaivan-beep.github.io/*\n2. 帳單狀態：Gemini 3 Pro 模型「必須」連結信用卡/帳單帳戶。\n3. API 服務：確認已啟用 "Generative Language API"。`);
     }
     
     // 一般錯誤
