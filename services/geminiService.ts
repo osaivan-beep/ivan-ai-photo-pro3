@@ -4,61 +4,153 @@ import type { GeminiImagePart, ImageResolution } from '../types';
 
 // Dynamic retrieval function
 export const getActiveKey = (): string => {
-    // Business Mode: Use the system configured (Paid) API Key exclusively.
+    // 1. Priority: Check Manual Override in LocalStorage first
+    let manualKey = localStorage.getItem('user_gemini_api_key') || "";
+    
+    // Auto-correct common typo: "Alza" (lowercase L) -> "AIza" (uppercase I)
+    if (/^Alza/i.test(manualKey.trim())) {
+        console.log("Auto-correcting API Key typo in LocalStorage...");
+        manualKey = manualKey.trim().replace(/^Alza/i, 'AIza');
+        localStorage.setItem('user_gemini_api_key', manualKey);
+    }
+
+    if (manualKey && manualKey.trim().startsWith('AIza')) {
+        return manualKey.trim();
+    }
+
+    // 2. Fallback: System Env
     let systemKey = process.env.API_KEY || "";
     
-    // Runtime cleanup: Remove any accidental whitespace or quotes
+    // Runtime cleanup
     systemKey = systemKey.trim().replace(/^['"]|['"]$/g, '');
     
-    // Allow any key format. If it's wrong, Google's server will reject it with a specific 400 error.
-    // This fixes the issue where invisible characters caused "Missing" error.
-    if (!systemKey) {
-        console.error("System API Key is missing! Check your .env file or GitHub Secrets.");
+    // Auto-correct common typo in Env
+    if (/^Alza/i.test(systemKey)) {
+        console.warn("Auto-correcting API Key typo in Env...");
+        systemKey = systemKey.replace(/^Alza/i, 'AIza');
+    }
+    
+    // If the system key is obviously the placeholder (GEMINI_API_KEY) or empty, ignore it
+    if (systemKey === "GEMINI_API_KEY" || !systemKey) {
+        console.warn("System API Key is invalid or missing.");
         return "";
     }
     
     return systemKey;
 };
 
-// Helper to verify which key is active (returns start and end chars for validation)
+// Helper to verify which key is active
 export const getKeyId = (): string => {
-    let key = process.env.API_KEY || "";
-    key = key.trim().replace(/^['"]|['"]$/g, '');
+    const key = getActiveKey();
 
     if (!key) return "Missing (未設定)";
+    if (key.includes("GEMI")) return "INVALID_PLACEHOLDER";
     
-    // Show first 4 and last 4 chars to strictly identify the key
     if (key.length > 8) {
         return `${key.substring(0, 4)}...${key.slice(-4)}`;
     }
     return "Unknown Key";
 };
 
-// Deprecated functions kept as no-ops to prevent build errors in other files referencing them
-export const setStoredKey = (key: string) => {};
-export const removeStoredKey = () => {};
+export const setStoredKey = (key: string) => {
+    // Auto-correct before saving
+    let cleanKey = key.trim();
+    if (/^Alza/i.test(cleanKey)) {
+        cleanKey = cleanKey.replace(/^Alza/i, 'AIza');
+    }
+    localStorage.setItem('user_gemini_api_key', cleanKey);
+};
+
+export const removeStoredKey = () => {
+    localStorage.removeItem('user_gemini_api_key');
+};
+
+/**
+ * DIAGNOSTIC TOOL
+ * Tests the key connectivity and permissions
+ */
+export const validateKeyAndListModels = async (inputKey: string) => {
+    let cleanKey = inputKey.trim();
+    if (/^Alza/i.test(cleanKey)) cleanKey = cleanKey.replace(/^Alza/i, 'AIza');
+
+    if (!cleanKey) return { success: false, log: "Error: Empty Key" };
+
+    try {
+        const ai = new GoogleGenAI({ apiKey: cleanKey });
+        // Try to list models - this verifies basic API access
+        const response = await ai.models.list();
+        
+        const models = response.models || [];
+        const modelNames = models.map((m: any) => m.name || m.displayName);
+        
+        // Check specifically for the image model we use
+        const hasGemini3 = modelNames.some((n: string) => n.includes('gemini-3-pro-image')); 
+        const hasFlash = modelNames.some((n: string) => n.includes('flash'));
+
+        let log = "✅ 連線成功 (Connection Success)\n";
+        log += `🔑 Key ID: ${cleanKey.substring(0,4)}...${cleanKey.slice(-4)}\n`;
+        log += `--------------------------------\n`;
+        log += `🔎 權限檢查 (Permission Check):\n`;
+        log += `   - Gemini 3 Pro Image: ${hasGemini3 ? "YES ✅" : "NO ❌ (Might be hidden but usable)"}\n`;
+        log += `   - Gemini Flash Available: ${hasFlash ? "YES ✅" : "NO ❌"}\n`;
+        log += `--------------------------------\n`;
+        log += `📋 可用模型列表 (Available Models):\n`;
+        log += modelNames.filter((n: string) => n.includes('gemini')).slice(0, 10).join('\n');
+        
+        return { success: true, log, hasGemini3 };
+
+    } catch (e: any) {
+        let errorMsg = `❌ 連線失敗 (Connection Failed)\n`;
+        errorMsg += `Code: ${e.status || 'Unknown'}\n`;
+        errorMsg += `Message: ${e.message}\n`;
+        
+        if (e.message?.includes('403') || e.status === 403) {
+            errorMsg += `\n⚠️ 403 原因分析:\n`;
+            
+            const isTranslated = window.location.hostname.includes('translate.goog') || window.location.hostname.includes('usercontent');
+            if (isTranslated) {
+                errorMsg += `🔴 偵測到您正在使用 Google 翻譯/代理！\n`;
+                errorMsg += `這會改變網址，導致 API Key 被攔截。\n`;
+                errorMsg += `解決方案：請至 Google Cloud Console 將 Key 限制改為 "None (不限制)"。\n`;
+            } else {
+                errorMsg += `1. 網域限制 (Referer) 錯誤。請確認 Google Console 已加入: ${window.location.origin}/*\n`;
+            }
+            errorMsg += `2. API 未啟用。請去 Console 啟用 "Generative Language API"。\n`;
+            errorMsg += `3. 專案無效/被停權 (Billing Issue)。\n`;
+        }
+        
+        return { success: false, log: errorMsg };
+    }
+};
 
 const handleGeminiError = (error: unknown, context: string): never => {
   console.error(`Error calling ${context}:`, error);
   if (error instanceof Error) {
     const msg = error.message;
+    const isTranslated = window.location.hostname.includes('translate.goog') || window.location.hostname.includes('usercontent');
     
-    // 偵測額度不足 (429)
+    // Add origin info for debugging 403s
+    const originInfo = `(Current Origin: ${window.location.origin})`;
+
     if (msg.includes('RESOURCE_EXHAUSTED') || msg.includes('429')) {
       throw new Error('系統忙碌中 (目前使用人數眾多)。\n請等待 30-60 秒後點擊「重試」。');
     }
     
-    // 偵測 Key 無效
     if (msg.includes('API_KEY_INVALID') || msg.includes('400')) {
-        throw new Error(`API 金鑰無效 (API_KEY_INVALID)。\n使用中的 Key ID: ${getKeyId()}\n請檢查 GitHub Secrets 是否正確設定為您的 Google API Key。`);
+        throw new Error(`API 金鑰無效 (API_KEY_INVALID)。\nKey ID: ${getKeyId()}\n請嘗試點擊右上角重置，並重新輸入 Key。`);
     }
 
-    // 偵測權限錯誤 (403)
     if (msg.includes('PERMISSION_DENIED') || msg.includes('403')) {
-        throw new Error(`API 權限錯誤 (403)。\n使用中的 Key ID: ${getKeyId()}\n\n請檢查 Google Cloud Console：\n1. 網域限制：是否已加入 https://osaivan-beep.github.io/*\n2. 帳單狀態：Gemini 3 Pro 模型「必須」連結信用卡/帳單帳戶。\n3. API 服務：確認已啟用 "Generative Language API"。`);
+        let advice = `API 權限錯誤 (403)。\nKey ID: ${getKeyId()}\n${originInfo}\n\n`;
+        
+        if (isTranslated) {
+            advice += `🔴 偵測到 Google 翻譯/代理網頁！\n這會改變來源網址，導致 API 攔截。\n請至 Google Cloud Console 將 API Key 限制改為「None (不限制)」。`;
+        } else {
+            advice += `請檢查：\n1. 網域限制是否包含 ${window.location.origin}/*\n2. 帳單狀態 (Gemini 3 Pro)\n3. Generative Language API 是否啟用`;
+        }
+        throw new Error(advice);
     }
     
-    // 一般錯誤
     throw new Error(`${context} Error: ${msg}`);
   }
   throw new Error(`An unknown error occurred while communicating with the ${context}.`);
@@ -67,11 +159,11 @@ const handleGeminiError = (error: unknown, context: string): never => {
 export const generateImageWithGemini = async (
   prompt: string,
   aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | null,
-  resolution: ImageResolution = '2K' // Default to 2K for Pro 3
+  resolution: ImageResolution = '2K' 
 ): Promise<{ imageUrl: string }> => {
   
   const apiKey = getActiveKey();
-  if (!apiKey) throw new Error("API Key 設定錯誤或遺失。請確認 GitHub Secrets 中的 API_KEY 是否正確。");
+  if (!apiKey) throw new Error("API Key 未設定。請重新整理頁面並輸入金鑰。");
 
   const ai = new GoogleGenAI({ apiKey });
   
@@ -89,7 +181,6 @@ export const generateImageWithGemini = async (
   };
 
   try {
-    // Using Gemini 3 Pro Image Preview
     const config: any = {
         imageConfig: {
             imageSize: resolution || '1K' 
@@ -100,6 +191,8 @@ export const generateImageWithGemini = async (
         config.imageConfig.aspectRatio = aspectRatio;
     }
 
+    // Try Gemini 3 Pro First
+    console.log("Attempting Gemini 3 Pro...");
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
       contents: { parts: [{ text: prompt }] },
@@ -111,6 +204,30 @@ export const generateImageWithGemini = async (
     return { imageUrl: img };
 
   } catch (error: any) {
+     console.warn("Primary model failed:", error.message);
+     
+     // Automatic Fallback Logic for ANY error (403, 404, 500)
+     // If user doesn't have Pro access, silently downgrade to Flash
+     if (error.message?.includes('403') || error.message?.includes('PERMISSION_DENIED') || error.message?.includes('not found')) {
+         console.warn("Falling back to Gemini 2.5 Flash Image...");
+         try {
+             const flashResponse = await ai.models.generateContent({
+                 model: 'gemini-2.5-flash-image', 
+                 contents: { parts: [{ text: prompt }] },
+                 // Flash image has simpler config
+                 config: {} 
+             });
+             const img = extractImage(flashResponse);
+             if (img) return { imageUrl: img };
+         } catch (fallbackError: any) {
+             console.error("Fallback also failed:", fallbackError);
+             // If fallback also fails, throw original error or a combined one
+             if (fallbackError.message?.includes('403')) {
+                 handleGeminiError(fallbackError, "Gemini Flash (Fallback)");
+             }
+         }
+     }
+     
      handleGeminiError(error, "Gemini 3 Pro Image API");
   }
 };
@@ -120,7 +237,7 @@ export const editImageWithGemini = async (
   prompt: string
 ): Promise<{ response: GenerateContentResponse }> => {
   const apiKey = getActiveKey();
-  if (!apiKey) throw new Error("API Key 設定錯誤或遺失。請確認 GitHub Secrets。");
+  if (!apiKey) throw new Error("API Key 未設定。");
 
   const ai = new GoogleGenAI({ apiKey });
 
@@ -131,7 +248,6 @@ export const editImageWithGemini = async (
   const allParts = [...imageParts, textPart];
 
   try {
-    // Gemini 3 Pro also handles editing
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview', 
       contents: { parts: allParts },
@@ -144,6 +260,19 @@ export const editImageWithGemini = async (
     return { response };
 
   } catch (error: any) {
+      // Fallback for Edit as well
+      if (error.message?.includes('403') || error.message?.includes('PERMISSION_DENIED')) {
+         console.warn("Gemini 3 Pro Edit failed, falling back to Flash...");
+         try {
+             const flashResponse = await ai.models.generateContent({
+                 model: 'gemini-2.5-flash-image', 
+                 contents: { parts: allParts },
+             });
+             return { response: flashResponse };
+         } catch (fbError) {
+             console.error("Fallback edit failed");
+         }
+      }
       handleGeminiError(error, "Gemini 3 Pro API");
   }
 };
