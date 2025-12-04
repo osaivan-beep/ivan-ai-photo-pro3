@@ -7,7 +7,7 @@ import { Toolbar } from './components/Toolbar';
 import { ThumbnailManager } from './components/ThumbnailManager';
 import { ResultDisplay } from './components/ResultDisplay';
 import { UploadIcon, SparklesIcon, RedrawIcon, ZoomInIcon, ZoomOutIcon, ArrowsPointingOutIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, UserCircleIcon, ShareIcon, CloseIcon, HandIcon, KeyIcon, VideoCameraIcon, RefreshIcon } from './components/Icons';
-import { editImageWithGemini, generateImageWithGemini, refinePrompt, getActiveKey, setStoredKey, removeStoredKey } from './services/geminiService';
+import { editImageWithGemini, generateImageWithGemini, refinePrompt, getActiveKey, setStoredKey, removeStoredKey, getKeyId } from './services/geminiService';
 import type { ApiResult, Language, UploadedImage, GeminiImagePart, TFunction, ImageResolution, UserProfile, FirebaseConfig } from './types';
 import { translations } from './lib/translations';
 import { PhotoEditor } from './components/PhotoEditor';
@@ -757,6 +757,10 @@ const App: React.FC = () => {
                     <span className="text-xs text-gray-400">{userProfile?.email}</span>
                     <span className="text-sm font-bold text-yellow-400 flex items-center gap-1">
                         <SparklesIcon className="w-4 h-4" /> {userProfile?.credits || 0} {t('creditsLabel')}
+                    </span>
+                    {/* Display Key ID for verification */}
+                    <span className="text-[10px] text-gray-500 font-mono mt-1" title="Active Key ID">
+                        Key: {getKeyId()}
                     </span>
                 </div>
                 <button onClick={() => logout()} className="text-xs bg-red-900/50 hover:bg-red-900 text-red-200 px-2 py-1 rounded">

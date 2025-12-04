@@ -6,8 +6,6 @@ import type { GeminiImagePart, ImageResolution } from '../types';
 export const getActiveKey = (): string => {
     // Business Mode: Use the system configured (Paid) API Key exclusively.
     // This ensures stability for all users.
-    // CRITICAL SECURITY NOTE: You MUST set "Website Restrictions" in Google Cloud Console
-    // to allow only 'https://osaivan-beep.github.io/*' to use this key.
     const systemKey = process.env.API_KEY;
     
     if (!systemKey) {
@@ -16,6 +14,13 @@ export const getActiveKey = (): string => {
     }
     
     return systemKey;
+};
+
+// Helper to verify which key is active (returns last 4 chars)
+export const getKeyId = (): string => {
+    const key = getActiveKey();
+    if (!key) return "None";
+    return "..." + key.slice(-4);
 };
 
 // Deprecated functions kept as no-ops to prevent build errors in other files referencing them
@@ -32,9 +37,9 @@ const handleGeminiError = (error: unknown, context: string): never => {
       throw new Error('系統忙碌中 (目前使用人數眾多)。\n請等待 30-60 秒後點擊「重試」。');
     }
     
-    // 偵測權限錯誤 (403) - 通常是 Domain 限制導致，或是 Key 無效
+    // 偵測權限錯誤 (403) - 通常是 Domain 限制導致，或是 Key 無效，或是 Billing 未啟用
     if (msg.includes('PERMISSION_DENIED') || msg.includes('403') || msg.includes('API_KEY_INVALID')) {
-        throw new Error('API 金鑰權限錯誤。請確認 Google Cloud Console 的網域限制設定。');
+        throw new Error(`API 權限錯誤 (403)。\nKey ID: ${getKeyId()}\n請檢查：\n1. Google Cloud Console 的「網域限制」是否包含 https://osaivan-beep.github.io/*\n2. 專案是否已啟用 Billing (Gemini 3 Pro 需綁定帳單)。`);
     }
     
     // 一般錯誤
@@ -46,7 +51,7 @@ const handleGeminiError = (error: unknown, context: string): never => {
 export const generateImageWithGemini = async (
   prompt: string,
   aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | null,
-  resolution: ImageResolution = '2K' // Add resolution support
+  resolution: ImageResolution = '2K' // Default to 2K for Pro 3
 ): Promise<{ imageUrl: string }> => {
   
   const apiKey = getActiveKey();
@@ -72,6 +77,7 @@ export const generateImageWithGemini = async (
     const config: any = {
         imageConfig: {
             // Map '1K', '2K', '4K' directly. Default to '1K' if unspecified.
+            // Gemini 3 supports '1K' and '2K' (and '4K' in some contexts, strictly follow docs)
             imageSize: resolution || '1K' 
         }
     };
@@ -115,10 +121,9 @@ export const editImageWithGemini = async (
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview', 
       contents: { parts: allParts },
-      // Note: Image editing might have limitations on resolution depending on the preview version
       config: {
           imageConfig: {
-              imageSize: '1K' // Default to 1K for editing to ensure speed/stability unless requested otherwise
+              imageSize: '1K' // Editing often safer at 1K for speed, can match resolution param if needed later
           }
       }
     });
@@ -167,25 +172,10 @@ export const refinePrompt = async (
     return response.text?.trim() || prompt;
   } catch (error: any) {
     console.error("Refine Prompt Error:", error);
-    // For rate limits during refinement, just return original prompt silently to avoid disrupting flow
     return prompt; 
   }
 };
 
-export interface WatermarkParams {
-    text: string;
-    subText?: string;
-    style: string;
-    theme?: string;
-    icon?: string;
-    color?: string;
-}
-
-export const generateWatermark = async (params: WatermarkParams): Promise<string> => {
-    return ""; 
-};
-
-// NEW: Video Prompt Structure
 export interface VideoPromptResultScheme {
     title: string;
     tags: string[];
@@ -258,7 +248,6 @@ export const generateVideoPrompt = async (
         const text = response.text?.trim();
         if (!text) throw new Error("Empty response");
         
-        // Clean markdown if present (though responseMimeType should handle it)
         const jsonStr = text.replace(/^```json\n|\n```$/g, '');
         const schemes = JSON.parse(jsonStr);
         
@@ -270,7 +259,6 @@ export const generateVideoPrompt = async (
     }
 };
 
-// NEW: Generate Poetic Text for Watermark
 export const generatePoeticText = async (
     style: string,
     languageLabel: string,
@@ -281,7 +269,6 @@ export const generatePoeticText = async (
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // Determine specific language instructions
     let languageInstruction = "";
     let formatInstruction = "";
 
@@ -319,7 +306,7 @@ export const generatePoeticText = async (
     Strict Instructions:
     1. ${languageInstruction}
     2. ${formatInstruction}
-    3. Output ONLY the raw text lines. No "Title:" labels, no markdown code blocks (like \`\`\`). DO NOT add "Here is the poem:"
+    3. Output ONLY the raw text lines. No "Title:" labels, no markdown code blocks.
     4. Be creative, visual, and capture the mood of the image.
     `;
 
@@ -351,14 +338,13 @@ export const generatePoeticText = async (
         let result = response.text?.trim();
         if (!result) return "AI 未能生成內容，請重試。\n(AI failed to generate content)";
         
-        // Clean up markdown
         result = result.replace(/^```[a-z]*\n/i, '').replace(/```$/, '').trim();
-        // Remove quotes
         result = result.replace(/^["']|["']$/g, '');
 
         return result;
 
     } catch (error: any) {
         handleGeminiError(error, "Gemini Poem Gen");
+        return "AI 生成錯誤 (Error)";
     }
 };
