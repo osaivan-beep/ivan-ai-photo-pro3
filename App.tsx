@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { GenerateContentResponse } from '@google/genai';
 import { CanvasEditor, type CanvasEditorRef } from './components/CanvasEditor';
@@ -101,7 +99,7 @@ const LandingScreen: React.FC<{ onConfigSave: (config: FirebaseConfig) => void; 
                 .replace(/”/g, '"')
                 .replace(/‘/g, "'")
                 .replace(/’/g, "'")
-                .replace(/\s+=\s+/g, '=')
+                .replace(/s+=\s+/g, '=')
                 .replace(/項目ID|專案ID|Project ID/g, 'projectId')
                 .replace(/應用程式ID|App ID/g, 'appId')
                 .replace(/儲存空間值區|Storage Bucket/g, 'storageBucket')
@@ -779,7 +777,7 @@ const App: React.FC = () => {
                         className="text-[10px] text-red-400 font-mono mt-1 hover:text-red-300 hover:underline cursor-pointer border border-red-900/50 bg-red-900/10 px-1 rounded" 
                         title="Click to Force Reset App (Fix Stuck Cache)"
                     >
-                        v3.5 | Key: {getKeyId()} (Click to Reset)
+                        v3.7 | Key: {getKeyId()} (Click to Reset)
                     </button>
                 </div>
                 <button onClick={() => logout()} className="text-xs bg-red-900/50 hover:bg-red-900 text-red-200 px-2 py-1 rounded">
